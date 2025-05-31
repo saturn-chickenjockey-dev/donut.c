@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>A spinning donut for your browser!</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background-color: black;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+  }
+  #intro {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: black;
+    color: white;
+    font-size: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    cursor: pointer;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+  }
+  #donut {
+    font-size: 14px;
+    line-height: 14px;
+    white-space: pre;
+    color: white;
+    user-select: none;
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <div id="intro">Click to enter</div>
+  <pre id="donut"></pre>
+  <audio id="music" src="/music.wav" loop></audio>
+
+<script>
+  const intro = document.getElementById('intro');
+  const donutElem = document.getElementById('donut');
+  const music = document.getElementById('music');
+
+  let A = 0, B = 0;
+  const R1 = 1, R2 = 2, K2 = 5;
+  const screenWidth = 80;
+  const screenHeight = 48;
+  const K1 = screenWidth * K2 * 3 / (8 * (R1 + R2));
+  const verticalSquash = 0.6;
+
+  let intervalId = null;
+
+  function renderFrame() {
+    const b = [];
+    const z = [];
+
+    for (let i = 0; i < screenWidth * screenHeight; i++) {
+      b[i] = ' ';
+      z[i] = 0;
+    }
+
+    for (let theta = 0; theta < 2 * Math.PI; theta += 0.07) {
+      const costheta = Math.cos(theta), sintheta = Math.sin(theta);
+
+      for (let phi = 0; phi < 2 * Math.PI; phi += 0.02) {
+        const cosphi = Math.cos(phi), sinphi = Math.sin(phi);
+        const circlex = R2 + R1 * costheta;
+        const circley = R1 * sintheta;
+
+        const x = circlex * (Math.cos(B) * cosphi + Math.sin(A) * Math.sin(B) * sinphi) - circley * Math.cos(A) * Math.sin(B);
+        const y = verticalSquash * (circlex * (Math.sin(B) * cosphi - Math.sin(A) * Math.cos(B) * sinphi) + circley * Math.cos(A) * Math.cos(B));
+        const zval = K2 + Math.cos(A) * circlex * sinphi + circley * Math.sin(A);
+        const ooz = 1 / zval;
+
+        const xp = Math.floor(screenWidth / 2 + K1 * ooz * x);
+        const yp = Math.floor(screenHeight / 2 - K1 * ooz * y);
+        const idx = xp + screenWidth * yp;
+
+        const L = Math.cos(phi) * costheta * Math.sin(B) - Math.cos(A) * costheta * Math.sin(phi) - Math.sin(A) * sintheta + Math.cos(B) * (Math.cos(A) * sintheta - costheta * Math.sin(A) * Math.sin(phi));
+
+        if (yp >= 0 && yp < screenHeight && xp >= 0 && xp < screenWidth && ooz > z[idx]) {
+          z[idx] = ooz;
+          const lumIndex = Math.floor(L * 8);
+          const chars = '.,-~:;=!*#$@';
+          b[idx] = chars[Math.max(0, Math.min(chars.length - 1, lumIndex))];
+        }
+      }
+    }
+
+    let html = '';
+    for (let y = 0; y < screenHeight; y++) {
+      for (let x = 0; x < screenWidth; x++) {
+        const idx = x + screenWidth * y;
+        html += b[idx];
+      }
+      html += '<br>';
+    }
+
+    donutElem.innerHTML = html;
+
+    A += 0.07;
+    B += 0.03;
+  }
+
+  function startDonut() {
+    intro.style.display = 'none';
+    donutElem.style.display = 'block';
+    renderFrame();  // render first frame immediately
+    music.play().catch(() => {});
+    intervalId = setInterval(renderFrame, 80);
+  }
+
+  intro.addEventListener('click', startDonut);
+</script>
+</body>
+</html>

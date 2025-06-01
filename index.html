@@ -5,36 +5,23 @@
 <title>A spinning donut for your browser!</title>
 <style>
   html, body {
-    margin: 0;
-    height: 100%;
-    background-color: black;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin: 0; height: 100%; background: black;
+    overflow: hidden; display: flex;
+    align-items: center; justify-content: center;
     font-family: monospace;
   }
   #intro {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: black;
-    color: white;
-    font-size: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    user-select: none;
-    cursor: pointer;
-    transition: opacity 0.3s ease;
-    z-index: 10;
+    position: fixed; inset: 0;
+    background: black; color: white;
+    font-size: 48px; display: flex;
+    align-items: center; justify-content: center;
+    user-select: none; cursor: pointer;
+    z-index: 10; backdrop-filter: blur(5px);
   }
   #donut {
-    font-size: 14px;
-    line-height: 14px;
-    white-space: pre;
-    color: white;
-    user-select: none;
-    display: none;
+    font-size: 14px; line-height: 14px;
+    white-space: pre; color: white;
+    user-select: none; display: none;
   }
 </style>
 </head>
@@ -45,30 +32,29 @@
 
 <script>
   const intro = document.getElementById('intro');
-  const donutElem = document.getElementById('donut');
+  const donut = document.getElementById('donut');
   const music = document.getElementById('music');
 
   let A = 0, B = 0;
-  const R1 = 1, R2 = 2, K2 = 5;
-  const screenWidth = 80;
-  const screenHeight = 48;
+  const [R1, R2, K2] = [1, 2, 5];
+  const screenWidth = 80, screenHeight = 48;
   const K1 = screenWidth * K2 * 3 / (8 * (R1 + R2));
   const verticalSquash = 0.6;
 
-  let intervalId = null;
+  let rainbow = false;
+  let intervalId;
 
-  function renderFrame() {
-    const b = [];
-    const z = [];
+  function getRainbowColor(idx) {
+    return `hsl(${(idx * 5) % 360},100%,70%)`;
+  }
 
-    for (let i = 0; i < screenWidth * screenHeight; i++) {
-      b[i] = ' ';
-      z[i] = 0;
-    }
+  function render() {
+    const b = Array(screenWidth * screenHeight).fill(' ');
+    const z = Array(screenWidth * screenHeight).fill(0);
+    const chars = '.,-~:;=!*#$@';
 
     for (let theta = 0; theta < 2 * Math.PI; theta += 0.07) {
       const costheta = Math.cos(theta), sintheta = Math.sin(theta);
-
       for (let phi = 0; phi < 2 * Math.PI; phi += 0.02) {
         const cosphi = Math.cos(phi), sinphi = Math.sin(phi);
         const circlex = R2 + R1 * costheta;
@@ -83,41 +69,58 @@
         const yp = Math.floor(screenHeight / 2 - K1 * ooz * y);
         const idx = xp + screenWidth * yp;
 
-        const L = Math.cos(phi) * costheta * Math.sin(B) - Math.cos(A) * costheta * Math.sin(phi) - Math.sin(A) * sintheta + Math.cos(B) * (Math.cos(A) * sintheta - costheta * Math.sin(A) * Math.sin(phi));
+        const L = Math.cos(phi) * costheta * Math.sin(B) - Math.cos(A) * costheta * Math.sin(phi)
+                  - Math.sin(A) * sintheta + Math.cos(B) * (Math.cos(A) * sintheta - costheta * Math.sin(A) * Math.sin(phi));
 
-        if (yp >= 0 && yp < screenHeight && xp >= 0 && xp < screenWidth && ooz > z[idx]) {
+        if (xp >= 0 && xp < screenWidth && yp >= 0 && yp < screenHeight && ooz > z[idx]) {
           z[idx] = ooz;
           const lumIndex = Math.floor(L * 8);
-          const chars = '.,-~:;=!*#$@';
           b[idx] = chars[Math.max(0, Math.min(chars.length - 1, lumIndex))];
         }
       }
     }
 
-    let html = '';
-    for (let y = 0; y < screenHeight; y++) {
-      for (let x = 0; x < screenWidth; x++) {
-        const idx = x + screenWidth * y;
-        html += b[idx];
-      }
-      html += '<br>';
-    }
+    donut.innerHTML = b.reduce((html, ch, i) => {
+      if (i % screenWidth === 0 && i !== 0) html += '<br>';
+      return html + (rainbow && ch !== ' ' ? `<span style="color:${getRainbowColor(i)}">${ch}</span>` : ch);
+    }, '');
 
-    donutElem.innerHTML = html;
-
-    A += 0.07;
-    B += 0.03;
+    A += 0.07; B += 0.03;
   }
 
-  function startDonut() {
+  function start() {
     intro.style.display = 'none';
-    donutElem.style.display = 'block';
-    renderFrame();  // render first frame immediately
+    donut.style.display = 'block';
+    render();
     music.play().catch(() => {});
-    intervalId = setInterval(renderFrame, 80);
+    intervalId = setInterval(render, 80);
   }
 
-  intro.addEventListener('click', startDonut);
+  intro.addEventListener('click', start);
+
+  // Konami code
+  const konami = ["ArrowUp","ArrowUp","ArrowDown","ArrowDown","ArrowLeft","ArrowRight","ArrowLeft","ArrowRight","Enter"];
+  let buffer = [];
+  document.addEventListener('keydown', e => {
+    buffer.push(e.key);
+    if (buffer.length > konami.length) buffer.shift();
+    if (buffer.join() === konami.join()) rainbow = true;
+  });
+
+  // Mobile triple tap on donut
+  let taps = 0, timer = null;
+  donut.addEventListener('touchstart', () => {
+    taps++;
+    if (taps === 3) {
+      rainbow = true;
+      taps = 0;
+      if (timer) clearTimeout(timer);
+      timer = null;
+    } else {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { taps = 0; timer = null; }, 600);
+    }
+  });
 </script>
 </body>
 </html>
